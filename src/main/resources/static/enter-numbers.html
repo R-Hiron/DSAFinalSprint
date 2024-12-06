@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Custom Binary Search Tree Visualization</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+        }
+    </style>
+    <script>
+        let currentTreeRoot = null;
+
+        async function processNumbers() {
+            try {
+                const input = document.getElementById('numbers').value;
+                const numbers = input.split(',').map(Number);
+
+                if (numbers.some(isNaN)) {
+                    alert("Please enter valid numbers separated by commas.");
+                    return;
+                }
+
+                const response = await fetch('/process-numbers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(numbers)
+                });
+
+                if (!response.ok) {
+                    throw new Error("Failed to process numbers");
+                }
+
+                const tree = await response.json();
+                currentTreeRoot = tree;
+                drawTree(tree);
+                loadPreviousTrees();
+            } catch (error) {
+                console.error(error);
+                alert("An error occurred: " + error.message);
+            }
+        }
+
+        function drawTree(tree) {
+            const canvas = document.getElementById('treeCanvas');
+            const ctx = canvas.getContext('2d');
+
+            // Clear the canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const nodeRadius = 20;
+
+            drawNode(ctx, tree, canvasWidth / 2, 50, canvasWidth / 4, nodeRadius);
+        }
+
+        function drawNode(ctx, node, x, y, xOffset, nodeRadius) {
+            if (!node) return;
+
+            ctx.beginPath();
+            ctx.arc(x, y, nodeRadius, 0, 2 * Math.PI);
+            ctx.fillStyle = 'white';
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = 'black';
+            ctx.font = '14px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.value, x, y);
+
+            if (node.left) {
+                const childX = x - xOffset;
+                const childY = y + 80;
+
+                ctx.beginPath();
+                ctx.moveTo(x, y + nodeRadius);
+                ctx.lineTo(childX, childY - nodeRadius);
+                ctx.stroke();
+
+                drawNode(ctx, node.left, childX, childY, xOffset / 2, nodeRadius);
+            }
+
+            if (node.right) {
+                const childX = x + xOffset;
+                const childY = y + 80;
+
+                ctx.beginPath();
+                ctx.moveTo(x, y + nodeRadius);
+                ctx.lineTo(childX, childY - nodeRadius);
+                ctx.stroke();
+
+                drawNode(ctx, node.right, childX, childY, xOffset / 2, nodeRadius);
+            }
+        }
+
+        async function loadPreviousTrees() {
+            try {
+                const response = await fetch('/previous-trees');
+                if (!response.ok) {
+                    throw new Error("Failed to load previous trees.");
+                }
+
+                const trees = await response.json();
+
+                const previousTreesDiv = document.getElementById('previousTrees');
+                previousTreesDiv.innerHTML = '';
+
+                trees.forEach(tree => {
+                    const treeDiv = document.createElement('div');
+                    treeDiv.style.marginBottom = '10px';
+
+                    const numbersSpan = document.createElement('span');
+                    numbersSpan.textContent = `Numbers: ${tree.inputNumbers} `;
+                    treeDiv.appendChild(numbersSpan);
+
+                    const displayButton = document.createElement('button');
+                    displayButton.textContent = 'Display';
+                    displayButton.onclick = () => {
+                        currentTreeRoot = JSON.parse(tree.treeJson);
+                        drawTree(currentTreeRoot);
+                    };
+                    treeDiv.appendChild(displayButton);
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Delete';
+                    deleteButton.onclick = () => deleteTree(tree.id);
+                    treeDiv.appendChild(deleteButton);
+
+                    previousTreesDiv.appendChild(treeDiv);
+                });
+            } catch (error) {
+                console.error(error);
+                alert("An error occurred while loading previous trees: " + error.message);
+            }
+        }
+
+        async function deleteTree(treeId) {
+            try {
+                const response = await fetch(`/delete-tree/${treeId}`, { method: 'DELETE' });
+                if (!response.ok) {
+                    throw new Error("Failed to delete tree.");
+                }
+
+                alert('Tree deleted successfully!');
+                loadPreviousTrees();
+            } catch (error) {
+                console.error(error);
+                alert("An error occurred while deleting the tree: " + error.message);
+            }
+        }
+
+        function searchInTree() {
+            const searchValue = parseInt(document.getElementById('searchValue').value);
+
+            if (isNaN(searchValue)) {
+                alert('Please enter a valid number to search.');
+                return;
+            }
+
+            const canvas = document.getElementById('treeCanvas');
+            const ctx = canvas.getContext('2d');
+
+            let found = false;
+
+            function searchNode(node, x, y, xOffset, nodeRadius, delay) {
+                if (!node) {
+                    setTimeout(() => {
+                        if (!found) alert('Value not found in the tree.');
+                    }, delay);
+                    return;
+                }
+
+                setTimeout(() => {
+                    ctx.beginPath();
+                    ctx.arc(x, y, nodeRadius, 0, 2 * Math.PI);
+                    ctx.fillStyle = 'yellow';
+                    ctx.fill();
+                    ctx.stroke();
+
+                    ctx.fillStyle = 'black';
+                    ctx.fillText(node.value, x, y);
+
+                    if (node.value === searchValue) {
+                        ctx.fillStyle = 'green';
+                        ctx.fill();
+                        ctx.stroke();
+                        ctx.fillStyle = 'black';
+                        ctx.fillText(node.value, x, y);
+                        found = true;
+                        alert(`Value ${searchValue} found in the tree!`);
+                        return;
+                    }
+                }, delay);
+
+                setTimeout(() => {
+                    if (searchValue < node.value) {
+                        const childX = x - xOffset;
+                        const childY = y + 80;
+
+                        ctx.beginPath();
+                        ctx.moveTo(x, y + nodeRadius);
+                        ctx.lineTo(childX, childY - nodeRadius);
+                        ctx.strokeStyle = 'yellow';
+                        ctx.stroke();
+
+                        searchNode(node.left, childX, childY, xOffset / 2, nodeRadius, delay + 1000);
+                    } else if (searchValue > node.value) {
+                        const childX = x + xOffset;
+                        const childY = y + 80;
+
+                        ctx.beginPath();
+                        ctx.moveTo(x, y + nodeRadius);
+                        ctx.lineTo(childX, childY - nodeRadius);
+                        ctx.strokeStyle = 'yellow';
+                        ctx.stroke();
+
+                        searchNode(node.right, childX, childY, xOffset / 2, nodeRadius, delay + 1000);
+                    }
+                }, delay + 1000);
+            }
+
+            if (currentTreeRoot) {
+                searchNode(currentTreeRoot, canvas.width / 2, 50, canvas.width / 4, 20, 0);
+            } else {
+                alert('No tree to search. Please submit numbers first.');
+            }
+        }
+
+        window.onload = loadPreviousTrees;
+    </script>
+</head>
+<body>
+<h1>Binary Search Tree Builder</h1>
+<div>
+    <label>Enter Numbers (comma-separated):</label>
+    <input id="numbers" type="text" />
+    <button onclick="processNumbers()">Submit</button>
+</div>
+<div>
+    <h2>Result:</h2>
+    <canvas id="treeCanvas" width="800" height="600"></canvas>
+</div>
+<div>
+    <label>Enter a number to search:</label>
+    <input id="searchValue" type="text" />
+    <button onclick="searchInTree()">Search in Tree</button>
+</div>
+<div>
+    <h2>Previous Trees:</h2>
+    <div id="previousTrees"></div>
+</div>
+</body>
+</html>
